@@ -1,0 +1,20 @@
+{
+  "name": "Mixed traffic at five altitudes, one threat, pilot complies after 2 s",
+  "description": "Display demo. Five aircraft from 1,800 ft above to 1,400 ft below. Only A00002, descending through ownship's altitude from the right, is on a collision course. A00006 climbs from below to above and crosses behind.",
+  "duration_s": 110,
+  "ownship": {"icao": "A00001", "lat": 39.5700, "lon": -104.8500, "alt_ft": 7500,
+              "gs_kt": 110, "track_deg": 0, "vs_fpm": 0},
+  "pilot": {"response": "comply", "delay_s": 2.0},
+  "intruders": [
+    {"icao": "A00002", "east_mi": 2.52, "north_mi": 3.38, "alt_ft": 8200,
+     "gs_kt": 120, "track_deg": 250, "vs_fpm": -500},
+    {"icao": "A00003", "east_mi": -3.0, "north_mi": 1.5, "alt_ft": 9300,
+     "gs_kt": 140, "track_deg": 90, "vs_fpm": 0},
+    {"icao": "A00004", "east_mi": -1.2, "north_mi": -1.0, "alt_ft": 6500,
+     "gs_kt": 125, "track_deg": 0, "vs_fpm": 0},
+    {"icao": "A00005", "east_mi": 1.5, "north_mi": 6.0, "alt_ft": 7050,
+     "gs_kt": 100, "track_deg": 180, "vs_fpm": 0},
+    {"icao": "A00006", "east_mi": 2.0, "north_mi": -2.0, "alt_ft": 6100,
+     "gs_kt": 95, "track_deg": 300, "vs_fpm": 700}
+  ]
+}

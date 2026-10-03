@@ -1,0 +1,12 @@
+{
+  "name": "Overtaking from behind, pilot complies after 2 s",
+  "description": "A 160 kt intruder 1.1 mi behind a 100 kt ownship on the same track, 100 ft above.",
+  "duration_s": 100,
+  "ownship": {"icao": "A00001", "lat": 39.5700, "lon": -104.8500, "alt_ft": 7500,
+              "gs_kt": 100, "track_deg": 0, "vs_fpm": 0},
+  "pilot": {"response": "comply", "delay_s": 2.0},
+  "intruders": [
+    {"icao": "A00002", "east_mi": 0.0, "north_mi": -1.1, "alt_ft": 7600,
+     "gs_kt": 160, "track_deg": 0, "vs_fpm": 0}
+  ]
+}

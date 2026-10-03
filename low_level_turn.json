@@ -1,0 +1,13 @@
+{
+  "name": "Low altitude: too low to descend, so the RA is a turn",
+  "description": "Ownship is level 700 ft above a field at 5,400 ft. Traffic is head-on and 150 ft higher, so the altitude-first choice is to descend. Below 1,000 ft above the ground a descend RA is not allowed, and climbing would cross the other aircraft's altitude, so this is the one case where the RA is a turn. The pilot does not respond and the simulated autopilot flies it.",
+  "duration_s": 90,
+  "field_elev_ft": 5400,
+  "ownship": {"icao": "A00001", "lat": 39.5700, "lon": -104.8500, "alt_ft": 6100,
+              "gs_kt": 90, "track_deg": 0, "vs_fpm": 0},
+  "pilot": {"response": "ignore"},
+  "intruders": [
+    {"icao": "A00002", "east_mi": 0.0, "north_mi": 3.6, "alt_ft": 6250,
+     "gs_kt": 100, "track_deg": 180, "vs_fpm": 0}
+  ]
+}

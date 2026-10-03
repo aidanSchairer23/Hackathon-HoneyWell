@@ -1,0 +1,12 @@
+{
+  "name": "Head-on, co-altitude, pilot ignores the RA",
+  "description": "Intruder 4.5 mi ahead on the reciprocal track at the same altitude. The pilot does not respond, so the simulated autopilot takes the RA after the compliance timeout.",
+  "duration_s": 100,
+  "ownship": {"icao": "A00001", "lat": 39.5700, "lon": -104.8500, "alt_ft": 7500,
+              "gs_kt": 110, "track_deg": 0, "vs_fpm": 0},
+  "pilot": {"response": "ignore"},
+  "intruders": [
+    {"icao": "A00002", "east_mi": 0.0, "north_mi": 4.5, "alt_ft": 7500,
+     "gs_kt": 110, "track_deg": 180, "vs_fpm": 0}
+  ]
+}

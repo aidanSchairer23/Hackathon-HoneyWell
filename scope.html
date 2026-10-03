@@ -1,0 +1,1237 @@
+<title>GATCAS Traffic Scope</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=B612:wght@400;700&family=B612+Mono:wght@400;700&display=swap">
+<style>
+/* Layout: a phone held upright. The picture (scope, side view, color key) takes
+   about 70 % of the screen and the traffic alert the other 30 %. Reference
+   panels slide up as a sheet on a phone and sit beside the column on a wide
+   screen. Color is spent only on data: two cool hues for altitude, amber and
+   red for alerts, everything else neutral. One deliberate dark look, as on a
+   cockpit display, in either host theme. */
+:root {
+  color-scheme: dark;
+  --plane: #0b0e12;        /* page */
+  --panel: #11161c;        /* cards and sheets */
+  --scope: #05080b;        /* instrument face */
+  --line: #222b35;         /* hairlines */
+  --line-2: #3a4755;       /* stronger rules, quiet rings */
+  --ink: #eef2f5;          /* primary text, ownship, level traffic */
+  --ink-2: #a9b6c3;        /* secondary text */
+  --ink-3: #74828f;        /* muted labels, aircraft on the ground */
+  --alt-above-far: #8771de;
+  --alt-above-near: #c3baff;
+  --alt-level: #eef2f5;
+  --alt-below-near: #7dd9ba;
+  --alt-below-far: #049d7b;
+  --ta: #fab219;           /* traffic advisory */
+  --ra: #d03b3b;           /* resolution advisory */
+  --ra-soft: #ff8a8a;      /* red that is readable as small text on dark */
+  --on-ra: #ffffff;        /* text on the red banner */
+  --scrim: rgba(5, 8, 11, 0.62);
+  --sans: "B612", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "B612 Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--plane); color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.4; }
+
+.app { position: relative; height: 100%; min-height: 540px; max-width: 472px; margin: 0 auto; padding-inline: 16px; padding-block: 8px 10px;
+  display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 7fr) minmax(min-content, 3fr); gap: 8px; }
+
+select, button { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line-2); border-radius: 4px; padding: 6px 10px; }
+select { max-width: 100%; min-width: 0; }
+button { cursor: pointer; }
+button:hover, select:hover { border-color: var(--ink-3); }
+button[aria-pressed="true"] { background: var(--ink); color: var(--plane); border-color: var(--ink); }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* ---- the picture: about 70 % ---- */
+.visual { display: flex; flex-direction: column; gap: 6px; min-height: 0; min-width: 0; }
+.bar { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.bar select { flex: 1 1 0; }
+.bar .live { flex: 1 1 0; min-width: 0; font-size: 12px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#play { flex: none; width: 40px; height: 34px; padding: 0; display: grid; place-items: center; }
+#play svg { width: 14px; height: 14px; fill: currentColor; }
+#clock { flex: none; font-family: var(--mono); font-size: 12px; color: var(--ink-2); min-width: 8ch; text-align: right; }
+.seek { position: relative; height: 18px; }
+.seek-track { position: absolute; inset: 0 7px; pointer-events: none; }
+.seek-track i { position: absolute; top: 0; width: 3px; height: 18px; margin-left: -1px; border-radius: 1px; background: var(--ink-2); opacity: 0.9; }
+.seek-track i.TA { background: var(--ta); }
+.seek-track i.RA, .seek-track i.AUTOPILOT { background: var(--ra); }
+.seek-track i.AUTOPILOT { height: 9px; top: 9px; }
+input[type="range"] { position: relative; display: block; width: 100%; height: 18px; margin: 0; accent-color: var(--ink); background: transparent; }
+
+.scope-wrap { position: relative; flex: 1 1 0; min-height: 150px; }
+.profile-wrap { position: relative; flex: 0 0 84px; }
+.scope-wrap canvas, .profile-wrap canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+#scope { touch-action: manipulation; cursor: crosshair; }
+.tip { position: absolute; pointer-events: none; z-index: 3; background: var(--panel); border: 1px solid var(--line-2); border-radius: 4px; padding: 8px 10px; font-size: 12px; min-width: 170px; max-width: 230px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); }
+.tip b { font-family: var(--mono); font-size: 13px; }
+.tip dl { margin: 4px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; }
+.tip dt { color: var(--ink-3); }
+.tip dd { margin: 0; text-align: right; font-family: var(--mono); }
+
+/* the always-visible color key; tapping it opens the full legend */
+.key { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 4px; width: 100%; min-height: 24px; padding: 2px 0;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.02em; color: var(--ink-2); }
+.key:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.key .cap { font-family: var(--sans); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); }
+.key span { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.key svg { flex: none; }
+
+/* ---- the traffic alert: about 30 % ---- */
+.alert, .focus { display: flex; flex-direction: column; gap: 6px; min-height: 0; min-width: 0; }
+/* the state is carried by a symbol and words, not by color alone */
+.banner { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid var(--line-2); border-radius: 4px; background: var(--panel); min-height: 58px; }
+.banner .sym { width: 36px; height: 36px; flex: none; display: grid; place-items: center; font-family: var(--mono); font-weight: 700; font-size: 13px; border: 2px solid var(--ink-3); color: var(--ink-3); border-radius: 50%; }
+.banner .sym svg { width: 24px; height: 24px; fill: currentColor; }
+.banner .txt { min-width: 0; flex: 1 1 0; }
+.banner .title { font-size: 22px; font-weight: 700; letter-spacing: 0.06em; line-height: 1.1; }
+.banner .detail { color: var(--ink-2); font-size: 12.5px; line-height: 1.3; overflow-wrap: anywhere; }
+.banner.ta { background: var(--ta); border-color: var(--ta); }
+.banner.ta .sym { background: var(--scope); border-color: var(--scope); color: var(--ta); }
+.banner.ta .title, .banner.ta .detail { color: var(--scope); }
+.banner.ra { background: var(--ra); border-color: var(--ra); }
+.banner.ra .sym { background: var(--on-ra); border-color: var(--on-ra); color: var(--ra); border-radius: 4px; }
+.banner.ra .title, .banner.ra .detail { color: var(--on-ra); }
+.banner.clear .sym { border-color: var(--ink); color: var(--ink); }
+.banner.gnd { border-style: dashed; }
+.banner.gnd .sym { border-radius: 4px; }
+.chip { display: inline-block; font-family: var(--mono); font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; padding: 1px 6px; border-radius: 3px; border: 1px solid var(--line-2); color: var(--ink-2); vertical-align: 1px; white-space: nowrap; }
+.chip.ta { background: var(--ta); border-color: var(--ta); color: var(--scope); }
+.chip.ra { background: var(--ra); border-color: var(--ra); color: var(--on-ra); }
+.chip.gnd { border-style: dashed; color: var(--ink-3); }
+.banner .chip.ap { flex: none; border-color: var(--on-ra); color: var(--on-ra); background: transparent; }
+
+.focus-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; font-size: 12.5px; color: var(--ink-2); min-height: 20px; }
+.focus-id { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--ink); }
+.stats { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.3fr); gap: 6px; }
+.stat { min-width: 0; }
+.stat .k { font-size: 9.5px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
+.stat .v { font-family: var(--mono); font-size: 17px; font-weight: 700; line-height: 1.2; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.stat .v small { font-size: 10.5px; font-weight: 400; color: var(--ink-2); }
+.stat .v.short { color: var(--ta); }
+.ladder { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; }
+.rung { border: 1px solid var(--line-2); border-radius: 3px; padding: 3px 2px; text-align: center; min-width: 0; }
+.rung .n { font-size: 10px; line-height: 1.2; color: var(--ink-3); white-space: nowrap; overflow: hidden; }
+.rung .m { font-family: var(--mono); font-size: 10px; line-height: 1.2; color: var(--ink-3); white-space: nowrap; }
+.rung.in { background: var(--ink-2); border-color: var(--ink-2); }
+.rung.in .n, .rung.in .m { color: var(--scope); font-weight: 700; }
+.rung.in.ta { background: var(--ta); border-color: var(--ta); }
+.rung.in.ra { background: var(--ra); border-color: var(--ra); }
+.rung.in.ra .n, .rung.in.ra .m { color: var(--on-ra); }
+.rung.na { border-style: dashed; opacity: 0.55; }
+.next { margin: 0; color: var(--ink-2); font-size: 12px; line-height: 1.3; min-height: 2.6em; }
+.empty { color: var(--ink-3); margin: 0; }
+.tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; margin-top: auto; }
+.tabs button { padding: 7px 2px; font-size: 12px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tabs button b { font-family: var(--mono); font-weight: 400; color: var(--ink-3); }
+.tabs button[aria-expanded="true"] { background: var(--ink); color: var(--plane); border-color: var(--ink); }
+.tabs button[aria-expanded="true"] b { color: var(--plane); }
+@media (max-height: 700px) { .next { display: none; } .profile-wrap { flex-basis: 66px; } }
+
+/* ---- reference panels ---- */
+.panel { background: var(--panel); min-width: 0; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+h1 { font-size: 18px; margin: 0; letter-spacing: 0.02em; text-wrap: balance; }
+h2 { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); margin: 0; font-weight: 700; }
+.sub { margin: 2px 0 8px; color: var(--ink-3); font-size: 12px; }
+.desc { margin: 0 0 12px; color: var(--ink-2); max-width: 65ch; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px 12px; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); min-width: 0; }
+.field select, .field button { text-transform: none; letter-spacing: 0; font-size: 14px; }
+.seg { display: inline-flex; }
+.seg button { flex: 1 1 0; border-radius: 0; margin-left: -1px; }
+.seg button:first-child { border-radius: 4px 0 0 4px; margin-left: 0; }
+.seg button:last-child { border-radius: 0 4px 4px 0; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th { text-align: right; font-weight: 400; font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-3); padding: 0 6px 5px; white-space: nowrap; }
+td { text-align: right; padding: 6px; border-top: 1px solid var(--line); font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; padding-left: 0; }
+td.wrap { white-space: normal; font-family: var(--sans); text-align: left; color: var(--ink-2); }
+tbody tr.pick { cursor: pointer; }
+tbody tr.pick:hover td { background: rgba(255, 255, 255, 0.04); }
+tbody tr.sel td { background: rgba(255, 255, 255, 0.08); }
+tbody tr.ground td { color: var(--ink-3); }
+.sw { display: inline-block; width: 11px; height: 11px; border-radius: 2px; margin-right: 7px; vertical-align: -1px; }
+.sw.ground { background: transparent; border: 1.5px solid var(--ink-3); }
+.legend-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.legend-list li { display: flex; align-items: center; gap: 9px; color: var(--ink-2); }
+.legend-list svg { flex: none; }
+.note { color: var(--ink-3); font-size: 12.5px; margin: 8px 0 0; max-width: 62ch; }
+.log { list-style: none; margin: 0; padding: 0; }
+.log li { border-top: 1px solid var(--line); }
+.log li:first-child { border-top: 0; }
+.log button { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 5.5ch minmax(0, 1fr); gap: 2px 10px; width: 100%; padding: 7px 4px; cursor: pointer; }
+.log button:hover { background: rgba(255, 255, 255, 0.04); }
+.log button:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+.log .t { font-family: var(--mono); color: var(--ink-3); }
+.log .what { font-weight: 700; letter-spacing: 0.03em; }
+.log .say { grid-column: 2; color: var(--ink-2); font-size: 12.5px; }
+.log li.future { opacity: 0.45; }
+
+/* phone: one panel at a time, as a sheet over the lower part of the screen */
+@media (max-width: 899px) {
+  .scrim { position: absolute; inset: 0; z-index: 4; background: var(--scrim); }
+  .sheets { position: absolute; z-index: 5; left: 0; right: 0; bottom: 0; max-height: 82%; overflow-y: auto; overscroll-behavior: contain;
+    background: var(--panel); border-top: 1px solid var(--line-2); border-radius: 12px 12px 0 0; padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.55); }
+  .sheets:not(.open), .sheets .panel:not(.active) { display: none; }
+}
+/* wide screen: the phone column, with every panel open beside it */
+@media (min-width: 900px) {
+  .app { max-width: 1240px; grid-template-columns: 400px; padding-block: 16px; }
+  .sheets { position: absolute; top: 16px; bottom: 16px; left: 440px; right: 16px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; align-content: start; align-items: start; }
+  .sheets .panel { border: 1px solid var(--line); border-radius: 4px; padding: 12px 14px; }
+  .sheets .panel[data-panel="setup"] { grid-column: 1 / -1; }
+  .tabs, .scrim, .panel-head .close { display: none; }
+}
+</style>
+
+<div class="app" id="app">
+  <section class="visual" aria-label="Traffic picture">
+    <div class="bar">
+      <button id="play" type="button" aria-label="Pause"></button>
+      <select id="scenario" aria-label="Scenario"></select>
+      <div class="live" id="live-line" hidden></div>
+      <output id="clock" for="seek">0 s</output>
+    </div>
+    <div class="seek" id="seek-row">
+      <div class="seek-track" id="marks" aria-hidden="true"></div>
+      <input type="range" id="seek" min="0" max="100" step="0.1" value="0" aria-label="Scenario time">
+    </div>
+    <div class="scope-wrap" id="scope-wrap">
+      <canvas id="scope" aria-label="Top-down traffic scope centred on ownship. The same data is in the Traffic panel."></canvas>
+      <div class="tip" id="tip" hidden></div>
+    </div>
+    <div class="profile-wrap"><canvas id="profile" aria-label="Side view of traffic: horizontal range against altitude difference, with the ground when its elevation is known."></canvas></div>
+    <button class="key" id="key" type="button" data-open="legend"></button>
+  </section>
+
+  <section class="alert" aria-label="Traffic alert">
+    <div class="banner" id="banner" role="status" aria-live="polite">
+      <div class="sym" id="banner-sym">–</div>
+      <div class="txt"><div class="title" id="banner-title">NO ADVISORY</div><div class="detail" id="banner-detail"></div></div>
+      <span class="chip ap" id="banner-ap" hidden>AUTOPILOT</span>
+    </div>
+    <div class="focus" id="focus-body"></div>
+    <nav class="tabs" aria-label="More information">
+      <button type="button" data-open="legend" aria-expanded="false">Legend</button>
+      <button type="button" data-open="traffic" aria-expanded="false">Traffic <b id="n-traffic"></b></button>
+      <button type="button" data-open="events" aria-expanded="false">Events <b id="n-events"></b></button>
+      <button type="button" data-open="rings" aria-expanded="false">Rings</button>
+      <button type="button" data-open="setup" aria-expanded="false">Setup</button>
+    </nav>
+  </section>
+
+  <div class="scrim" id="scrim" hidden></div>
+  <div class="sheets" id="sheets">
+    <section class="panel" data-panel="setup">
+      <div class="panel-head"><h1>GATCAS Traffic Scope</h1><button type="button" class="close">Close</button></div>
+      <p class="sub" id="mode-line">Simulation and demo only. Not connected to any aircraft.</p>
+      <p class="desc" id="scenario-desc"></p>
+      <div class="fields">
+        <label class="field" id="speed-field">Speed
+          <select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
+        </label>
+        <label class="field">Range
+          <select id="range"><option value="auto" selected>Auto</option><option value="1">1 mi</option><option value="2">2 mi</option><option value="3.5">3.5 mi</option><option value="6">6 mi</option><option value="10">10 mi</option></select>
+        </label>
+        <div class="field">View
+          <div class="seg" role="group" aria-label="Scope orientation">
+            <button type="button" id="view-track" aria-pressed="true">Track up</button>
+            <button type="button" id="view-north" aria-pressed="false">North up</button>
+          </div>
+        </div>
+        <div class="field">Voice alerts
+          <button type="button" id="voice" aria-pressed="false">Off</button>
+        </div>
+      </div>
+      <p class="note" id="advice-note"></p>
+    </section>
+    <section class="panel" data-panel="legend">
+      <div class="panel-head"><h2>Reading the scope</h2><button type="button" class="close">Close</button></div>
+      <ul class="legend-list" id="legend-alt"></ul>
+      <ul class="legend-list" id="legend-sym"></ul>
+    </section>
+    <section class="panel" data-panel="traffic">
+      <div class="panel-head"><h2>Traffic</h2><button type="button" class="close">Close</button></div>
+      <div class="scroll">
+        <table id="traffic">
+          <thead><tr><th>Aircraft</th><th>Range mi</th><th>Clock</th><th>Alt ft</th><th>Closest s</th><th>Miss ft / nm</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="note">Tap a row, or an aircraft on the scope, to follow it. Tap again to go back to the most urgent one.</p>
+    </section>
+    <section class="panel" data-panel="events">
+      <div class="panel-head"><h2>Events</h2><button type="button" class="close">Close</button></div>
+      <ul class="log" id="log"></ul>
+    </section>
+    <section class="panel" data-panel="rings">
+      <div class="panel-head"><h2>Boundaries around the aircraft</h2><button type="button" class="close">Close</button></div>
+      <div class="scroll">
+        <table id="shells">
+          <thead><tr><th>Boundary</th><th>Radius</th><th>Height</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="note">Each boundary is a flat disc, not a sphere: the threat volume is 3,038 ft wide and 600 ft tall. From above it is a ring; in the side view it is a box. The two time rings grow and shrink with closing speed.</p>
+    </section>
+  </div>
+</div>
+
+<script>
+"use strict";
+const DATA = /*__GATCAS_DATA__*/null;
+
+(function () {
+  const $ = (id) => document.getElementById(id);
+  if (!DATA) {
+    $("banner-title").textContent = "NO DATA";
+    $("banner-detail").textContent = "Generate this page with:  python -m gatcas.viz";
+    return;
+  }
+
+  // ------------------------------------------------------------------ constants
+  const MI = 1609.344, NM = 1852, KT = 1852 / 3600;
+  const CFG = DATA.config;
+  const SHELLS = DATA.shells;                       // outermost first, straight from gatcas/zones.py
+  const RANK = Object.fromEntries(SHELLS.map((s) => [s.key, s.rank]));
+  const RANGE_STEPS = [1, 2, 3.5, 6, 10];
+  const LIVE = DATA.live;
+  const css = getComputedStyle(document.documentElement);
+  const tok = (n) => css.getPropertyValue(n).trim();
+  const COL = {
+    scope: tok("--scope"), line: tok("--line"), line2: tok("--line-2"),
+    ink: tok("--ink"), ink2: tok("--ink-2"), ink3: tok("--ink-3"),
+    ta: tok("--ta"), ra: tok("--ra"), raSoft: tok("--ra-soft"), onRa: tok("--on-ra"),
+    band: {
+      above_far: tok("--alt-above-far"), above_near: tok("--alt-above-near"), level: tok("--alt-level"),
+      below_near: tok("--alt-below-near"), below_far: tok("--alt-below-far"),
+    },
+  };
+  const FONT = { mono: tok("--mono"), sans: tok("--sans") };
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const wide = window.matchMedia("(min-width: 900px)");
+  const SHORT = { surveillance: "Tracked", watch: "Watch", ta: "TA ring", ra: "RA ring", threat: "Threat", core: "RA target" };
+  const ARROW = {
+    climb: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 21 12h-5.5v10h-7V12H3z"/></svg>',
+    descend: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22 3 12h5.5V2h7v10H21z"/></svg>',
+    "turn right": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 22V12a5 5 0 0 1 5-5h5V2l8 7.5-8 7.5v-5H9.5v10z"/></svg>',
+    "turn left": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 22V12a5 5 0 0 0-5-5h-5V2L2 9.5 10 17v-5h4.5v10z"/></svg>',
+    ground: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 15h18v2H3zM6 19h12v2H6zM12 3l5 9H7z"/></svg>',
+  };
+  const ICON = {
+    play: '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 1 13 7 2 13z"/></svg>',
+    pause: '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 1h4v12H2zM8 1h4v12H8z"/></svg>',
+    replay: '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M7 2a5 5 0 1 1-4.6 3l1.7.8A3.1 3.1 0 1 0 7 3.9V6L3 3l4-3z"/></svg>',
+  };
+
+  // ------------------------------------------------------------------ helpers
+  const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+  const lerp = (a, b, u) => a + (b - a) * u;
+  const wrap180 = (d) => ((d + 180) % 360 + 360) % 360 - 180;
+  const lerpDeg = (a, b, u) => ((a + wrap180(b - a) * u) % 360 + 360) % 360;
+  const fmtMi = (m) => (m / MI).toFixed(m / MI < 10 ? 2 : 1);
+  const fmtFt = (ft) => Math.round(ft).toLocaleString("en-US");
+  const signFt = (ft) => (Math.round(ft) > 0 ? "+" : Math.round(ft) < 0 ? "−" : "") + fmtFt(Math.abs(ft));
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+  function band(relAltFt) {
+    const a = Math.abs(relAltFt);
+    if (a <= CFG.ta_level_band_ft) return "level";
+    return (relAltFt > 0 ? "above" : "below") + (a <= CFG.threat_vmd_ft ? "_near" : "_far");
+  }
+  function altWords(relAltFt) {
+    const a = Math.abs(relAltFt);
+    if (a < 50) return "same altitude";
+    return fmtFt(a) + " ft " + (relAltFt > 0 ? "above" : "below");
+  }
+  function altTag(t) {           // "+07" = 700 ft above, with a trend arrow when climbing or descending
+    const h = Math.round(t.rel_alt_ft / 100);
+    const s = (h > 0 ? "+" : h < 0 ? "−" : "") + String(Math.abs(h)).padStart(2, "0");
+    return s + (t.vs_fpm >= 300 ? "↑" : t.vs_fpm <= -300 ? "↓" : "");
+  }
+  function clock(ownTrack, bearing) {
+    const h = Math.round((((bearing - ownTrack) % 360 + 360) % 360) / 30) % 12;
+    return h === 0 ? 12 : h;
+  }
+  const sevColor = (t) => (t.level === "RA" ? COL.ra : t.level === "TA" ? COL.ta : COL.ink3);
+  const closingKt = (t) => Math.max(0, -t.range_rate_mps) / KT;
+  const groundWord = (t) => (t.gs_kt >= 2 ? "taxiing " + t.gs_kt.toFixed(0) + " kt" : "parked");
+
+  // ------------------------------------------------------------------ state
+  const S = {
+    rec: null, recIndex: 0, frames: [], t: 0, playing: !reduceMotion, speed: 1,
+    orient: "track", rangeSel: "auto", scaleMi: 6, selected: null,
+    voice: false, seenEvents: 0, hover: null, hits: [], liveSeq: 0, liveAnchor: 0,
+    sheet: null, opener: null,
+  };
+  const fieldElev = () => (LIVE ? LIVE.field_elev_ft : S.rec && S.rec.field_elev_ft);
+
+  function indexAt(t) {
+    const f = S.frames;
+    let lo = 0, hi = f.length - 1;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (f[mid].t <= t + 1e-9) lo = mid; else hi = mid - 1; }
+    return lo;
+  }
+
+  const NUM = ["e_m", "n_m", "alt_ft", "rel_alt_ft", "range_m", "tcpa_s", "hmd_m", "vmd_ft", "miss_e_m", "miss_n_m",
+               "proximity", "range_rate_mps", "rel_speed_mps", "vs_fpm", "gs_kt"];
+  // The engine runs at 1 Hz. Between two cycles the picture is interpolated so
+  // motion is smooth; alert state, RA, ground state and shell membership stay as the engine set them.
+  function frameAt(t) {
+    const f = S.frames;
+    if (!f.length) return null;
+    const i = indexAt(t), a = f[i], b = f[Math.min(i + 1, f.length - 1)];
+    const u = b.t > a.t ? clamp((t - a.t) / (b.t - a.t), 0, 1) : 0;
+    const nextBy = Object.fromEntries(b.targets.map((x) => [x.icao, x]));
+    const targets = a.targets.map((x) => {
+      const y = nextBy[x.icao];
+      if (!y) return x;
+      const o = Object.assign({}, x);
+      for (const k of NUM) o[k] = lerp(x[k], y[k], u);
+      o.track_deg = lerpDeg(x.track_deg, y.track_deg, u);
+      o.bearing_deg = lerpDeg(x.bearing_deg, y.bearing_deg, u);
+      o.shells = {};
+      for (const k in x.shells) {
+        const sx = x.shells[k], sy = y.shells[k];
+        o.shells[k] = Object.assign({}, sx);
+        if (sx.radius_m != null && sy.radius_m != null) {
+          o.shells[k].radius_m = lerp(sx.radius_m, sy.radius_m, u);
+          o.shells[k].margin_m = lerp(sx.margin_m, sy.margin_m, u);
+        }
+      }
+      return o;
+    });
+    const own = Object.assign({}, a.own, {
+      alt_ft: lerp(a.own.alt_ft, b.own.alt_ft, u), vs_fpm: lerp(a.own.vs_fpm, b.own.vs_fpm, u),
+      track_deg: lerpDeg(a.own.track_deg, b.own.track_deg, u),
+      agl_ft: a.own.agl_ft == null || b.own.agl_ft == null ? a.own.agl_ft : lerp(a.own.agl_ft, b.own.agl_ft, u),
+    });
+    return { t, index: i, own, targets, active_ra: a.active_ra, autopilot: a.autopilot };
+  }
+
+  let eventCache = null, eventCacheFor = null, eventCacheLen = -1;
+  function allEvents() {
+    if (eventCacheFor !== S.frames || eventCacheLen !== S.frames.length) {
+      eventCache = [];
+      S.frames.forEach((f) => f.events.forEach((e) => eventCache.push(Object.assign({ t: f.t }, e))));
+      eventCacheFor = S.frames; eventCacheLen = S.frames.length;
+    }
+    return eventCache;
+  }
+  const EVENT_TITLE = { TA: "Traffic advisory", RA: "Resolution advisory", AUTOPILOT: "Autopilot engaging", CLEAR: "Clear of conflict", RA_LOST: "RA target lost" };
+
+  // The target the readouts follow: the one you picked, else the most urgent airborne one.
+  function focusTarget(fr) {
+    if (!fr || !fr.targets.length) return null;
+    if (S.selected) { const s = fr.targets.find((t) => t.icao === S.selected); if (s) return s; }
+    const lvl = { RA: 2, TA: 1, NONE: 0 };
+    return fr.targets.slice().sort((p, q) =>
+      (Number(p.on_ground) - Number(q.on_ground)) ||
+      (lvl[q.level] - lvl[p.level]) ||
+      (p.level !== "NONE" ? p.tcpa_s - q.tcpa_s : q.proximity - p.proximity) ||
+      (p.range_m - q.range_m))[0];
+  }
+
+  function wantedScale(fr, focus) {
+    if (S.rangeSel !== "auto") return Number(S.rangeSel);
+    if (!focus) return 6;
+    if (fr.own.on_ground && focus.level === "NONE") return RANGE_STEPS[0];   // on the ground: look at the airport
+    let need = focus.range_m * 1.35;
+    for (const k of ["ta", "ra"]) {      // keep the next time ring on screen while traffic approaches it
+      const s = focus.shells[k];
+      if (s.applies && !s.inside) need = Math.max(need, s.radius_m * 1.12);
+    }
+    need /= MI;
+    return RANGE_STEPS.find((s) => s >= need) || RANGE_STEPS[RANGE_STEPS.length - 1];
+  }
+
+  // ------------------------------------------------------------------ canvas plumbing
+  function fit(canvas) {
+    const r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w: r.width, h: r.height };
+  }
+  function label(ctx, text, x, y, opt) {
+    opt = opt || {};
+    ctx.font = (opt.bold ? "700 " : "400 ") + (opt.size || 11) + "px " + (opt.sans ? FONT.sans : FONT.mono);
+    ctx.textAlign = opt.align || "left";
+    ctx.textBaseline = opt.base || "middle";
+    if (opt.halo !== false) { ctx.lineWidth = 3; ctx.strokeStyle = COL.scope; ctx.lineJoin = "round"; ctx.strokeText(text, x, y); }
+    ctx.fillStyle = opt.color || COL.ink2;
+    ctx.fillText(text, x, y);
+  }
+  function dartPath(ctx, size) {
+    ctx.beginPath();
+    ctx.moveTo(0, -size); ctx.lineTo(size * 0.72, size * 0.85); ctx.lineTo(0, size * 0.42); ctx.lineTo(-size * 0.72, size * 0.85);
+    ctx.closePath();
+  }
+  function dart(ctx, x, y, rotDeg, size, fill) {
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(rotDeg * Math.PI / 180);
+    dartPath(ctx, size);
+    ctx.lineWidth = 3; ctx.strokeStyle = COL.scope; ctx.lineJoin = "round"; ctx.stroke();   // surface ring keeps overlapping symbols apart
+    ctx.fillStyle = fill; ctx.fill();
+    ctx.restore();
+  }
+  function groundBar(ctx, x, y, half, color) {
+    ctx.beginPath(); ctx.moveTo(x - half, y); ctx.lineTo(x + half, y);
+    ctx.moveTo(x - half * 0.55, y + 3); ctx.lineTo(x + half * 0.55, y + 3);
+    ctx.lineWidth = 1.5; ctx.strokeStyle = color; ctx.stroke();
+  }
+  // An aircraft on the ground: hollow, muted, sitting on a short ground bar. No altitude color.
+  function groundDart(ctx, x, y, rotDeg, size) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.save(); ctx.rotate(rotDeg * Math.PI / 180);
+    dartPath(ctx, size);
+    ctx.lineJoin = "round"; ctx.lineWidth = 4; ctx.strokeStyle = COL.scope; ctx.stroke();
+    ctx.fillStyle = COL.scope; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = COL.ink3; ctx.stroke();
+    ctx.restore();
+    groundBar(ctx, 0, size + 4, size, COL.ink3);
+    ctx.restore();
+  }
+  function ownGlyph(ctx, x, y, rotDeg) {
+    const P = [[0, -14], [2.4, -6], [13, 2.5], [13, 5], [2.4, 2.6], [1.8, 9.5], [6, 12.6], [6, 14.2], [0, 12.8]];
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(rotDeg * Math.PI / 180);
+    ctx.beginPath();
+    P.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
+    for (let i = P.length - 2; i > 0; i--) ctx.lineTo(-P[i][0], P[i][1]);
+    ctx.closePath();
+    ctx.lineWidth = 3; ctx.strokeStyle = COL.scope; ctx.lineJoin = "round"; ctx.stroke();
+    ctx.fillStyle = COL.ink; ctx.fill();
+    ctx.restore();
+  }
+  function pill(ctx, text, cx, cy, bg, fg, size) {
+    ctx.font = "700 " + size + "px " + FONT.mono;
+    const w = ctx.measureText(text).width + 12, h = size + 8;
+    ctx.fillStyle = bg; ctx.fillRect(cx - w / 2, cy - h / 2, w, h);
+    label(ctx, text, cx, cy + 0.5, { size, bold: true, align: "center", color: fg, halo: false });
+  }
+
+  // ------------------------------------------------------------------ the scope
+  function drawScope(fr, focus, wall) {
+    const canvas = $("scope"), { ctx, w, h } = fit(canvas);
+    ctx.clearRect(0, 0, w, h);
+    const FOOT = 18;                                                     // bottom row: mode, advice, view
+    const cx = w / 2, cy = (h - FOOT) / 2, R = Math.max(20, Math.min(w, h - FOOT) / 2 - 26);
+    const rot = S.orient === "track" && fr ? -fr.own.track_deg : 0;      // degrees added to every bearing
+    const pxPerM = R / (S.scaleMi * MI);
+    const pol = (bearingDeg, r) => { const a = (bearingDeg + rot) * Math.PI / 180; return [cx + r * Math.sin(a), cy - r * Math.cos(a)]; };
+    const xy = (e, n) => { const a = rot * Math.PI / 180, c = Math.cos(a), s = Math.sin(a); return [cx + (e * c + n * s) * pxPerM, cy - (-e * s + n * c) * pxPerM]; };
+
+    // face and compass
+    ctx.beginPath(); ctx.arc(cx, cy, R + 14, 0, Math.PI * 2); ctx.fillStyle = COL.scope; ctx.fill();
+    ctx.lineWidth = 1; ctx.strokeStyle = COL.line2; ctx.stroke();
+    for (let d = 0; d < 360; d += 10) {
+      const major = d % 30 === 0, a = pol(d, R + (major ? 9 : 5)), b = pol(d, R + 1);
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
+      ctx.strokeStyle = major ? COL.ink3 : COL.line2; ctx.lineWidth = 1; ctx.stroke();
+      if (major) {
+        const p = pol(d, R + 19), name = d === 0 ? "N" : d === 90 ? "E" : d === 180 ? "S" : d === 270 ? "W" : String(d / 10);
+        label(ctx, name, p[0], p[1], { align: "center", size: d % 90 === 0 ? 12 : 10, bold: d % 90 === 0, color: d % 90 === 0 ? COL.ink2 : COL.ink3, halo: false });
+      }
+    }
+    S.hits = [];
+    if (!fr) return;
+
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
+
+    // fixed boundaries around ownship, to scale. Aircraft on the ground never light them.
+    const insideAny = (key) => fr.targets.some((t) => !t.on_ground && t.shells[key].inside);
+    for (const sh of SHELLS) {
+      if (sh.kind !== "distance") continue;
+      const r = sh.radius_m * pxPerM;
+      if (r > R * 1.02 || r < 3) continue;
+      const hit = insideAny(sh.key), volume = sh.half_height_ft != null;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      if (volume) { ctx.fillStyle = hit ? "rgba(208,59,59," + (sh.key === "core" ? 0.3 : 0.16) + ")" : "rgba(238,242,245,0.045)"; ctx.fill(); }
+      ctx.lineWidth = volume ? 1.5 : 1;
+      ctx.strokeStyle = volume ? (hit ? COL.ra : COL.ink3) : COL.line2;
+      ctx.stroke();
+      const lp = [cx + r * Math.sin(2.45), cy - r * Math.cos(2.45)];
+      const unit = sh.key === "threat" || sh.key === "core" ? (sh.radius_m / NM).toFixed(2).replace(/0$/, "") + " nm" : (sh.radius_m / MI).toFixed(0) + " mi";
+      if (r > 34 && !fr.own.on_ground) label(ctx, sh.label.toUpperCase() + " " + unit, lp[0] + 4, lp[1] + 9, { size: 9.5, color: hit && volume ? COL.raSoft : COL.ink3 });
+    }
+
+    // time rings for the focus threat: where this aircraft's time-to-closest reaches 50 s and 35 s
+    if (focus && focus.threat) {
+      for (const key of ["ta", "ra"]) {
+        const st = focus.shells[key];
+        if (!st.applies) continue;
+        const r = st.radius_m * pxPerM;
+        if (r > R * 1.25) continue;
+        const color = key === "ra" ? COL.ra : COL.ta;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.setLineDash(st.inside ? [] : [7, 6]);
+        ctx.lineWidth = st.inside ? 2 : 1.5; ctx.strokeStyle = color; ctx.stroke(); ctx.setLineDash([]);
+        const secs = key === "ra" ? CFG.ra_tcpa_s : CFG.ta_tcpa_s;
+        const lp = pol(focus.bearing_deg + (key === "ra" ? 24 : -24), Math.min(r, R - 12));
+        if (r < R * 1.02) label(ctx, key.toUpperCase() + " " + secs + " s", lp[0], lp[1], { size: 10, bold: true, align: "center", color: key === "ra" ? COL.raSoft : COL.ta });
+      }
+    }
+
+    // traffic: aircraft on the ground first, then quiet aircraft, so alerts draw on top
+    const order = fr.targets.slice().sort((a, b) =>
+      (Number(b.on_ground) - Number(a.on_ground)) || (RANK[a.innermost || "surveillance"] - RANK[b.innermost || "surveillance"]));
+    const spots = order.map((t) => xy(t.e_m, t.n_m));
+    const crowded = (p) => spots.filter((q) => Math.abs(q[1] - p[1]) < 13 && q[0] - p[0] > -6 && q[0] - p[0] < 46).length > 1;
+    for (const t of order) {
+      const p = xy(t.e_m, t.n_m), fill = t.on_ground ? COL.ink3 : COL.band[band(t.rel_alt_ft)];
+      const dist = Math.hypot(p[0] - cx, p[1] - cy);
+      const isFocus = focus && focus.icao === t.icao, sev = sevColor(t);
+      if (dist > R - 4) {                  // off the edge: a pip on the rim at its bearing
+        const q = pol(t.bearing_deg, R - 7);
+        ctx.beginPath(); ctx.arc(q[0], q[1], 3.5, 0, Math.PI * 2);
+        if (t.on_ground) { ctx.lineWidth = 1.5; ctx.strokeStyle = fill; ctx.stroke(); } else { ctx.fillStyle = fill; ctx.fill(); }
+        continue;
+      }
+
+      if (t.on_ground) {
+        if (isFocus && S.selected) { ctx.beginPath(); ctx.arc(p[0], p[1], 13, 0, Math.PI * 2); ctx.lineWidth = 1; ctx.strokeStyle = COL.ink; ctx.stroke(); }
+        groundDart(ctx, p[0], p[1], t.track_deg + rot, 7.5);
+        // the hollow shape and ground bar already say "on the ground"; the letters are added where there is room
+        if (isFocus || !crowded(p)) label(ctx, "GND", p[0] + 13, p[1] - 6, { size: 10, bold: true, color: COL.ink3 });
+        if (isFocus) label(ctx, t.icao, p[0] + 13, p[1] + 6, { size: 9.5, color: COL.ink3 });
+        S.hits.push({ icao: t.icao, x: p[0], y: p[1] });
+        continue;
+      }
+
+      // where it has been, relative to us
+      const i0 = indexAt(fr.t);
+      for (let k = 1; k <= 8; k++) {
+        const pf = S.frames[i0 - k * 3];
+        if (!pf) break;
+        const old = pf.targets.find((x) => x.icao === t.icao);
+        if (!old || old.on_ground) break;
+        const q = xy(old.e_m, old.n_m);
+        ctx.beginPath(); ctx.arc(q[0], q[1], 1.6, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(169,182,195," + (0.5 - k * 0.055) + ")"; ctx.fill();
+      }
+
+      // where it will be at closest approach, relative to us
+      if (t.tcpa_s > 0.5 && (t.threat || isFocus)) {
+        const m = xy(t.miss_e_m, t.miss_n_m);
+        ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(m[0], m[1]);
+        ctx.lineWidth = 1; ctx.strokeStyle = t.threat ? sev : COL.ink3; ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(m[0] - 4, m[1] - 4); ctx.lineTo(m[0] + 4, m[1] + 4); ctx.moveTo(m[0] + 4, m[1] - 4); ctx.lineTo(m[0] - 4, m[1] + 4);
+        ctx.lineWidth = 1.5; ctx.stroke();
+      }
+
+      // ripples: one per boundary crossed, moving faster the closer it is
+      const n = RANK[t.innermost || "surveillance"];
+      if (n > 0) {
+        const phase = reduceMotion ? 0 : (wall * (0.35 + 1.5 * t.proximity)) % 1;
+        for (let k = 0; k < n; k++) {
+          const u = (k + phase) / n;
+          ctx.beginPath(); ctx.arc(p[0], p[1], 14 + u * n * 6.5, 0, Math.PI * 2);
+          ctx.lineWidth = t.level === "NONE" ? 1 : 1.75;
+          ctx.globalAlpha = 0.95 - 0.6 * u; ctx.strokeStyle = sev; ctx.stroke(); ctx.globalAlpha = 1;
+        }
+      }
+      if (isFocus && S.selected) { ctx.beginPath(); ctx.arc(p[0], p[1], 11, 0, Math.PI * 2); ctx.lineWidth = 1; ctx.strokeStyle = COL.ink; ctx.stroke(); }
+
+      dart(ctx, p[0], p[1], t.track_deg + rot, 9, fill);
+
+      // tag: alert chip, altitude difference in hundreds of feet, address
+      let tx = p[0] + 15;
+      const ty = p[1] - 7;
+      if (t.level !== "NONE") {
+        ctx.fillStyle = sev; ctx.fillRect(tx - 1, ty - 7.5, 21, 15);
+        label(ctx, t.level, tx + 9.5, ty + 0.5, { size: 10.5, bold: true, align: "center", color: t.level === "RA" ? COL.onRa : COL.scope, halo: false });
+        tx += 25;
+      }
+      label(ctx, altTag(t), tx, ty, { size: 13, bold: true, color: COL.ink });
+      if (w >= 430 || isFocus) label(ctx, t.icao, p[0] + 15, ty + 14, { size: 9.5, color: COL.ink3 });   // small screens: address on the focus aircraft only
+      S.hits.push({ icao: t.icao, x: p[0], y: p[1] });
+    }
+    ctx.restore();
+
+    // ownship, with the advisory it should be flying
+    const ownRot = S.orient === "track" ? 0 : fr.own.track_deg;
+    if (fr.active_ra) {
+      const m = fr.active_ra.maneuver;
+      if (m.startsWith("turn")) {
+        ctx.strokeStyle = COL.raSoft; ctx.fillStyle = COL.raSoft; ctx.lineWidth = 3; ctx.lineCap = "round";
+        const dir = m === "turn right" ? 1 : -1, a0 = (ownRot - 90) * Math.PI / 180, r = 30;
+        const a1 = a0 + dir * 1.35;
+        ctx.beginPath(); ctx.arc(cx, cy, r, a0 + dir * 0.25, a1, dir < 0); ctx.stroke();
+        const hx = cx + r * Math.cos(a1), hy = cy + r * Math.sin(a1), tang = a1 + dir * Math.PI / 2;
+        ctx.beginPath();
+        ctx.moveTo(hx + 9 * Math.cos(tang), hy + 9 * Math.sin(tang));
+        ctx.lineTo(hx + 6 * Math.cos(tang + 2.5), hy + 6 * Math.sin(tang + 2.5));
+        ctx.lineTo(hx + 6 * Math.cos(tang - 2.5), hy + 6 * Math.sin(tang - 2.5));
+        ctx.closePath(); ctx.fill();
+        ctx.lineCap = "butt";
+      }
+      pill(ctx, m.toUpperCase() + (m === "climb" ? " ↑" : m === "descend" ? " ↓" : "") + (fr.autopilot ? "  AUTOPILOT" : ""), cx, h - 10, COL.ra, COL.onRa, 11);
+    }
+    ownGlyph(ctx, cx, cy, ownRot);
+    if (fr.own.on_ground) {
+      groundBar(ctx, cx, cy + 19, 13, COL.ink);
+      label(ctx, "ON GROUND", cx, cy + 34, { size: 10, bold: true, align: "center", color: COL.ink });
+    }
+
+    // corner readouts
+    label(ctx, "TRK " + String(Math.round(fr.own.track_deg) % 360).padStart(3, "0") + "°", 2, 9, { size: 12, bold: true, color: COL.ink, halo: false });
+    label(ctx, fmtFt(fr.own.alt_ft) + " ft", 2, 25, { size: 11, color: COL.ink2, halo: false });
+    if (fr.own.agl_ft != null) label(ctx, fr.own.on_ground ? "on ground" : fmtFt(Math.max(0, fr.own.agl_ft)) + " AGL", 2, 40, { size: 10, color: COL.ink3, halo: false });
+    label(ctx, "EDGE " + (S.scaleMi < 10 ? S.scaleMi.toFixed(1).replace(/\.0$/, "") : "10") + " mi", w - 2, 9, { size: 12, bold: true, align: "right", color: COL.ink, halo: false });
+    label(ctx, S.rangeSel === "auto" ? "auto range" : "fixed range", w - 2, 25, { size: 11, align: "right", color: COL.ink2, halo: false });
+    label(ctx, LIVE ? "LIVE" : "SIMULATION", 2, h - 8, { size: 10, bold: true, color: COL.ink3, halo: false });
+    label(ctx, S.orient === "track" ? "TRACK UP" : "NORTH UP", w - 2, h - 8, { size: 10, align: "right", color: COL.ink3, halo: false });
+  }
+
+  // ------------------------------------------------------------------ side view
+  function drawProfile(fr, focus) {
+    const { ctx, w, h } = fit($("profile"));
+    ctx.clearRect(0, 0, w, h);
+    if (!fr) return;
+    const L = 38, Rm = 4, T = 3, B = 14, pw = w - L - Rm, ph = h - T - B;
+    const VMAX = 1500, xMax = S.scaleMi * MI;
+    const X = (m) => L + clamp(m / xMax, 0, 1) * pw;
+    const Y = (ft) => T + (1 - (clamp(ft, -VMAX, VMAX) + VMAX) / (2 * VMAX)) * ph;
+    const lv = CFG.ta_level_band_ft, th = CFG.threat_vmd_ft;
+
+    ctx.fillStyle = COL.scope; ctx.fillRect(L, T, pw, ph);
+    // altitude bands, tinted with the same five colors the aircraft wear
+    const bands = [[th, VMAX, "above_far"], [lv, th, "above_near"], [-lv, lv, "level"], [-th, -lv, "below_near"], [-VMAX, -th, "below_far"]];
+    for (const [lo, hi, key] of bands) {
+      ctx.globalAlpha = key === "level" ? 0.07 : 0.13; ctx.fillStyle = COL.band[key];
+      ctx.fillRect(L, Y(hi), pw, Y(lo) - Y(hi)); ctx.globalAlpha = 1;
+      ctx.fillStyle = COL.band[key]; ctx.fillRect(L - 5, Y(hi) + 1, 3, Y(lo) - Y(hi) - 2);
+    }
+    for (const ft of [th, 0, -th]) {
+      ctx.beginPath(); ctx.moveTo(L, Y(ft) + 0.5); ctx.lineTo(L + pw, Y(ft) + 0.5);
+      ctx.lineWidth = 1; ctx.strokeStyle = ft === 0 ? COL.line2 : COL.line; ctx.stroke();
+      label(ctx, ft === 0 ? "you" : (ft > 0 ? "+" : "−") + fmtFt(Math.abs(ft)), L - 8, Y(ft), { size: 9.5, align: "right", color: COL.ink3, halo: false });
+    }
+    const stepMi = S.scaleMi <= 2 ? 0.5 : S.scaleMi <= 6 ? 1 : 2;
+    for (let m = stepMi; m <= S.scaleMi + 1e-6; m += stepMi) {
+      const x = X(m * MI);
+      ctx.beginPath(); ctx.moveTo(x + 0.5, T + ph); ctx.lineTo(x + 0.5, T + ph + 3); ctx.strokeStyle = COL.line2; ctx.stroke();
+      label(ctx, m + " mi", Math.min(x, w - 14), T + ph + 9, { size: 9.5, align: "center", color: COL.ink3, halo: false });
+    }
+    label(ctx, "SIDE", 2, T + ph + 9, { size: 9.5, align: "left", color: COL.ink3, halo: false, sans: true });
+
+    ctx.save();
+    ctx.beginPath(); ctx.rect(L, T, pw, ph); ctx.clip();
+    // the ground, when its elevation is known, and the height below which a descend RA is not issued
+    const groundRel = fr.own.agl_ft == null ? null : -fr.own.agl_ft;
+    if (groundRel != null && groundRel > -VMAX) {
+      const gy = Y(groundRel);
+      ctx.fillStyle = "rgba(116,130,143,0.22)"; ctx.fillRect(L, gy, pw, T + ph - gy);
+      ctx.lineWidth = 1; ctx.strokeStyle = "rgba(116,130,143,0.6)";
+      for (let x = L - ph; x < L + pw; x += 9) { ctx.beginPath(); ctx.moveTo(x, T + ph); ctx.lineTo(x + (T + ph - gy), gy); ctx.stroke(); }
+      ctx.beginPath(); ctx.moveTo(L, gy); ctx.lineTo(L + pw, gy); ctx.lineWidth = 2; ctx.strokeStyle = COL.ink3; ctx.stroke();
+      const floorRel = groundRel + CFG.ra_descend_min_agl_ft;
+      if (!fr.own.on_ground && floorRel < VMAX) {
+        const fy = Y(floorRel);
+        ctx.beginPath(); ctx.moveTo(L, fy); ctx.lineTo(L + pw, fy); ctx.setLineDash([2, 4]); ctx.lineWidth = 1; ctx.strokeStyle = COL.ink2; ctx.stroke(); ctx.setLineDash([]);
+        label(ctx, "descend floor " + fmtFt(CFG.ra_descend_min_agl_ft) + " AGL", L + pw - 4, fy + (fy < T + 12 ? 8 : -7), { size: 9.5, align: "right", color: COL.ink2, sans: true });
+      }
+      if (gy < T + ph - 9) label(ctx, "GROUND " + fmtFt(fieldElev()) + " ft", L + pw - 4, gy + 8, { size: 9.5, align: "right", color: COL.ink2, sans: true });
+    }
+
+    // the same boundaries as the rings, seen edge-on: boxes
+    for (const sh of SHELLS) {
+      if (sh.kind !== "distance" || sh.half_height_ft == null) continue;
+      const hit = fr.targets.some((t) => !t.on_ground && t.shells[sh.key].inside);
+      const x1 = X(sh.radius_m), y0 = Y(sh.half_height_ft), y1 = Y(-sh.half_height_ft);
+      ctx.fillStyle = hit ? "rgba(208,59,59,0.28)" : "rgba(238,242,245,0.06)"; ctx.fillRect(L, y0, x1 - L, y1 - y0);
+      ctx.lineWidth = 1.5; ctx.strokeStyle = hit ? COL.ra : COL.ink3; ctx.strokeRect(L + 0.5, y0 + 0.5, x1 - L, y1 - y0);
+    }
+    if (focus && focus.threat) {
+      for (const key of ["ta", "ra"]) {
+        const st = focus.shells[key];
+        if (!st.applies || st.radius_m > xMax) continue;
+        const x = X(st.radius_m), color = key === "ra" ? COL.ra : COL.ta;
+        ctx.beginPath(); ctx.moveTo(x, Y(th)); ctx.lineTo(x, Y(-th));
+        ctx.setLineDash(st.inside ? [] : [5, 4]); ctx.lineWidth = st.inside ? 2 : 1.5; ctx.strokeStyle = color; ctx.stroke(); ctx.setLineDash([]);
+        label(ctx, key.toUpperCase(), x + 4, Y(-th) - 6, { size: 9.5, bold: true, align: "left", color: key === "ra" ? COL.raSoft : COL.ta });
+      }
+    }
+
+    for (const t of fr.targets) {
+      if (t.range_m > xMax) continue;
+      const x = X(t.range_m), y = Y(t.rel_alt_ft), isFocus = focus && focus.icao === t.icao;
+      if (t.on_ground) {                           // a hollow square sitting on the ground line
+        ctx.fillStyle = COL.scope; ctx.fillRect(x - 4, y - 8, 8, 8);
+        ctx.lineWidth = 1.5; ctx.strokeStyle = COL.ink3; ctx.strokeRect(x - 4, y - 8, 8, 8);
+        if (isFocus) label(ctx, t.icao, x + 8, y - 6, { size: 9.5, color: COL.ink });
+        continue;
+      }
+      if (t.level !== "NONE") { ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.lineWidth = 2; ctx.strokeStyle = sevColor(t); ctx.stroke(); }
+      ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+      ctx.lineWidth = 2; ctx.strokeStyle = COL.scope; ctx.stroke(); ctx.fillStyle = COL.band[band(t.rel_alt_ft)]; ctx.fill();
+      if (Math.abs(t.vs_fpm) >= 300) {
+        const d = t.vs_fpm > 0 ? -1 : 1;
+        ctx.beginPath(); ctx.moveTo(x, y + d * 7); ctx.lineTo(x, y + d * 15); ctx.moveTo(x - 3, y + d * 11.5); ctx.lineTo(x, y + d * 15); ctx.lineTo(x + 3, y + d * 11.5);
+        ctx.lineWidth = 1.5; ctx.strokeStyle = COL.ink2; ctx.stroke();
+      }
+      if (isFocus) {
+        const txt = Math.abs(t.rel_alt_ft) > VMAX ? t.icao + " " + altTag(t) : t.icao;
+        const right = x + 11 + txt.length * 6 < L + pw;
+        label(ctx, txt, right ? x + 11 : x - 11, y + (t.rel_alt_ft > VMAX - 150 ? 10 : t.rel_alt_ft < -VMAX + 150 ? -10 : -1), { size: 9.5, align: right ? "left" : "right", color: COL.ink });
+      }
+    }
+    ctx.restore();
+
+    // ownship at the origin, flying to the right, with the altitude advice it should be following
+    const oy = Y(0);
+    ctx.beginPath(); ctx.moveTo(L + 11, oy); ctx.lineTo(L, oy - 5); ctx.lineTo(L + 3, oy); ctx.lineTo(L, oy + 5); ctx.closePath();
+    ctx.lineWidth = 2; ctx.strokeStyle = COL.scope; ctx.stroke(); ctx.fillStyle = COL.ink; ctx.fill();
+    if (fr.active_ra && !fr.active_ra.maneuver.startsWith("turn")) {
+      const d = fr.active_ra.maneuver === "climb" ? -1 : 1, x = L + 20, len = Math.min(26, ph / 2 - 6);
+      ctx.beginPath(); ctx.moveTo(x, oy + d * 5); ctx.lineTo(x, oy + d * len);
+      ctx.moveTo(x - 6, oy + d * (len - 7)); ctx.lineTo(x, oy + d * len); ctx.lineTo(x + 6, oy + d * (len - 7));
+      ctx.lineWidth = 3.5; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = COL.raSoft; ctx.stroke(); ctx.lineCap = "butt";
+    }
+  }
+
+  // ------------------------------------------------------------------ the alert panel
+  function setBanner(fr) {
+    const b = $("banner"), ev = allEvents().filter((e) => e.t <= S.t + 1e-6);
+    const grounded = fr ? fr.targets.filter((t) => t.on_ground).length : 0;
+    const tracked = fr ? fr.targets.length + " aircraft tracked" + (grounded ? ", " + grounded + " on the ground" : "") : "";
+    let cls = "", sym = "–", title = "NO ADVISORY", detail = tracked;
+    const lastClear = ev.filter((e) => e.kind === "CLEAR").pop();
+    const where = (t) => clock(fr.own.track_deg, t.bearing_deg) + " o’clock, " + fmtMi(t.range_m) + " mi, " + altWords(t.rel_alt_ft);
+    if (fr && fr.active_ra) {
+      const m = fr.active_ra.maneuver, t = fr.targets.find((x) => x.icao === fr.active_ra.icao);
+      cls = "ra"; sym = ARROW[m]; title = m.toUpperCase();
+      detail = fr.active_ra.icao + (t ? ": " + where(t) : "");
+      if (t && t.basis && t.basis.startsWith("turn")) detail += ". " + (t.basis.includes("too low") ? "Too low to descend." : "Altitude change alone falls short.");
+    } else if (fr && fr.targets.some((t) => t.level === "TA")) {
+      const t = fr.targets.filter((x) => x.level === "TA").sort((p, q) => p.tcpa_s - q.tcpa_s)[0];
+      cls = "ta"; sym = "TA"; title = "TRAFFIC";
+      detail = t.icao + ": " + where(t) + (fr.own.on_ground ? ". On the ground: no maneuver advised." : "");
+    } else if (lastClear && S.t - lastClear.t < 5) {
+      cls = "clear"; sym = "✓"; title = "CLEAR OF CONFLICT"; detail = "Advisory against " + lastClear.icao + " has ended.";
+    } else if (fr && fr.own.on_ground) {
+      cls = "gnd"; sym = ARROW.ground; title = "ON GROUND"; detail = "Traffic advisories only. " + tracked + ".";
+    }
+    const ap = Boolean(fr && fr.active_ra && fr.autopilot);
+    const key = cls + title + detail + ap;
+    if (b.dataset.key !== key) {
+      b.dataset.key = key;
+      b.className = "banner " + cls;
+      if (sym.charAt(0) === "<") $("banner-sym").innerHTML = sym; else $("banner-sym").textContent = sym;
+      $("banner-title").textContent = title; $("banner-detail").textContent = detail;
+      $("banner-ap").hidden = !ap;
+    }
+  }
+
+  function stat(k, v, small, cls) {
+    const d = el("div", "stat"); d.append(el("div", "k", k));
+    const val = el("div", "v" + (cls ? " " + cls : ""), v); if (small) { val.append(" "); val.append(el("small", null, small)); }
+    d.append(val); return d;
+  }
+  function setFocus(fr, focus) {
+    const body = $("focus-body");
+    body.textContent = "";
+    if (!focus) { body.append(el("p", "empty", LIVE && !S.frames.length ? "Waiting for the receiver." : "No traffic in range.")); return; }
+    const head = el("div", "focus-head");
+    const sw = el("span", "sw" + (focus.on_ground ? " ground" : "")); if (!focus.on_ground) sw.style.background = COL.band[band(focus.rel_alt_ft)];
+    const id = el("span", "focus-id"); id.append(sw, focus.icao);
+    head.append(id);
+    head.append(focus.on_ground ? el("span", "chip gnd", "ON GROUND")
+      : el("span", "chip " + (focus.level === "RA" ? "ra" : focus.level === "TA" ? "ta" : ""), focus.level === "NONE" ? "NO ALERT" : focus.level));
+    head.append(el("span", null, (S.selected === focus.icao ? "selected, " : "") + clock(fr.own.track_deg, focus.bearing_deg) + " o’clock, " + (focus.on_ground ? groundWord(focus) : altWords(focus.rel_alt_ft))));
+    body.append(head);
+
+    const stats = el("div", "stats");
+    stats.append(stat("Range", fmtMi(focus.range_m), "mi"));
+    stats.append(stat("Altitude", signFt(focus.rel_alt_ft), "ft"));
+    if (focus.on_ground) {
+      stats.append(stat("Speed", focus.gs_kt.toFixed(0), "kt"));
+      stats.append(stat("Alerts", "none"));
+      body.append(stats);
+      body.append(el("p", "next", "On the ground. It is shown so you know it is there, and it never raises an advisory."));
+      return;
+    }
+    stats.append(stat("Closest in", focus.tcpa_s > 0 ? focus.tcpa_s.toFixed(0) : "now", focus.tcpa_s > 0 ? "s" : ""));
+    // amber when an RA is active and the predicted miss is still inside the RA target volume
+    const short = focus.level === "RA" && focus.tcpa_s > 0 && focus.vmd_ft < CFG.ra_success_vmd_ft && focus.hmd_m < CFG.ra_success_hmd_nm * NM;
+    stats.append(stat("Miss ft / nm", fmtFt(focus.vmd_ft), "/ " + (focus.hmd_m / NM).toFixed(2), short ? "short" : ""));
+    body.append(stats);
+
+    const ladder = el("div", "ladder");
+    for (const sh of SHELLS) {
+      const st = focus.shells[sh.key];
+      const rung = el("div", "rung" + (st.inside ? " in" : "") + (!st.applies ? " na" : "") +
+        (st.inside && (sh.key === "ta") ? " ta" : "") + (st.inside && sh.rank >= 3 ? " ra" : ""));
+      rung.append(el("div", "n", SHORT[sh.key] || sh.label));
+      rung.append(el("div", "m", !st.applies ? "n/a" : st.inside ? "inside" : fmtMi(st.radius_m) + " mi"));
+      rung.title = sh.label + ". " + sh.meaning;
+      ladder.append(rung);
+    }
+    body.append(ladder);
+
+    // one line of explanation: why this advice, or what comes next
+    let next = null;
+    for (const sh of SHELLS) {
+      const st = focus.shells[sh.key];
+      if (st.applies && st.margin_m > 0 && (!next || st.margin_m < next.st.margin_m)) next = { sh, st };
+    }
+    let line;
+    if (focus.level === "RA" && focus.maneuver && focus.scores) {
+      const pct = Math.round(focus.scores[focus.maneuver] * 100);
+      const reach = pct >= 100 ? "predicted to meet the RA target" : "predicted to reach " + pct + "% of the RA target";
+      if (focus.basis === "altitude first") line = "Altitude first: " + focus.maneuver + " was " + reach + " of " + fmtFt(CFG.ra_success_vmd_ft) + " ft.";
+      else if (focus.basis && focus.basis.includes("too low")) line = "Turn: the altitude choice was descend, and that is not advised below " + fmtFt(CFG.ra_descend_min_agl_ft) + " ft above the ground.";
+      else if (focus.basis && focus.basis.startsWith("turn")) line = "Turn: an altitude change alone was predicted to fall well short, and the turn does better.";
+      else line = focus.maneuver.charAt(0).toUpperCase() + focus.maneuver.slice(1) + " was " + reach + ".";
+      if (!focus.threat) line += " Held until the two aircraft have passed.";
+    }
+    else if (!focus.threat && focus.range_rate_mps < -0.5) line = "Closing, but predicted to miss by more than the threat volume, so the TA and RA rings do not apply to it.";
+    else if (focus.range_rate_mps >= -0.5) line = "Not closing.";
+    else if (next) {
+      const secs = next.st.margin_m / -focus.range_rate_mps;
+      line = "Next boundary: " + next.sh.label.toLowerCase() + " in " + fmtMi(next.st.margin_m) + " mi" + (secs < 600 ? ", about " + secs.toFixed(0) + " s at this closing speed." : ".");
+    } else line = "Inside every boundary.";
+    body.append(el("p", "next", line));
+  }
+
+  // ------------------------------------------------------------------ reference panels
+  function setTable(fr, focus) {
+    const tb = $("traffic").tBodies[0];
+    $("n-traffic").textContent = fr ? fr.targets.length : "";
+    if (!wide.matches && S.sheet !== "traffic") return;       // not on screen
+    const hadFocus = tb.contains(document.activeElement) ? document.activeElement.dataset.icao : null;
+    tb.textContent = "";
+    if (!fr || !fr.targets.length) {
+      const tr = el("tr"), td = el("td", "wrap", "No traffic in range."); td.colSpan = 6; tr.append(td); tb.append(tr); return;
+    }
+    for (const t of fr.targets) {
+      const tr = el("tr", "pick" + (focus && focus.icao === t.icao ? " sel" : "") + (t.on_ground ? " ground" : ""));
+      tr.tabIndex = 0; tr.dataset.icao = t.icao;
+      const first = el("td"), sw = el("span", "sw" + (t.on_ground ? " ground" : "")); if (!t.on_ground) sw.style.background = COL.band[band(t.rel_alt_ft)];
+      first.append(sw, t.icao);
+      if (t.on_ground) first.append(" ", el("span", "chip gnd", "GND"));
+      else if (t.level !== "NONE") first.append(" ", el("span", "chip " + (t.level === "RA" ? "ra" : "ta"), t.level));
+      tr.append(first);
+      tr.append(el("td", null, fmtMi(t.range_m)));
+      tr.append(el("td", null, String(clock(fr.own.track_deg, t.bearing_deg))));
+      tr.append(el("td", null, signFt(t.rel_alt_ft) + (t.vs_fpm >= 300 ? " ↑" : t.vs_fpm <= -300 ? " ↓" : "")));
+      tr.append(el("td", null, t.on_ground ? "–" : t.tcpa_s > 0 ? t.tcpa_s.toFixed(0) : "–"));
+      tr.append(el("td", null, t.on_ground ? groundWord(t) : fmtFt(t.vmd_ft) + " / " + (t.hmd_m / NM).toFixed(2)));
+      tb.append(tr);
+      if (hadFocus === t.icao) tr.focus();      // the table is rebuilt often; keep the keyboard where it was
+    }
+  }
+
+  function setShellRows(focus) {
+    if (!wide.matches && S.sheet !== "rings") return;
+    const tb = $("shells").tBodies[0];
+    tb.textContent = "";
+    for (const sh of SHELLS.slice().reverse()) {     // innermost first: most severe at the top
+      const tr = el("tr");
+      tr.append(el("td", null, sh.label));
+      let radius;
+      if (sh.kind === "distance") radius = sh.key === "threat" || sh.key === "core" ? (sh.radius_m / NM) + " nm" : (sh.radius_m / MI).toFixed(0) + " mi";
+      else {
+        const st = focus && focus.shells[sh.key];
+        radius = sh.seconds + " s" + (st && st.applies ? " = " + fmtMi(st.radius_m) + " mi now" : "");
+      }
+      tr.append(el("td", null, radius));
+      tr.append(el("td", null, sh.half_height_ft == null ? "any" : "±" + fmtFt(sh.half_height_ft) + " ft"));
+      tb.append(tr);
+      const why = el("tr"), td = el("td", "wrap", sh.meaning + " Set by " + sh.source.join(", ") + "."); td.colSpan = 3; td.style.borderTop = "0"; td.style.paddingTop = "0";
+      why.append(td); tb.append(why);
+    }
+  }
+
+  const dartSvg = (c, s) => '<svg width="' + s + '" height="' + s + '" viewBox="-10 -10 20 20" aria-hidden="true"><path d="M0-9 6.5 7.6 0 3.8-6.5 7.6Z" fill="' + c + '"/></svg>';
+  const groundSvg = (s) => '<svg width="' + s + '" height="' + s + '" viewBox="-10 -10 20 20" aria-hidden="true"><path d="M0-9 5.5 4.6 0 1.6-5.5 4.6Z" fill="none" stroke="' + COL.ink3 + '" stroke-width="1.6" stroke-linejoin="round"/><path d="M-7 7.5H7M-4 9.6H4" stroke="' + COL.ink3 + '" stroke-width="1.4" fill="none"/></svg>';
+  function buildLegend() {
+    const lv = CFG.ta_level_band_ft, th = CFG.threat_vmd_ft;
+    // the compact key under the scope
+    const key = $("key");
+    key.setAttribute("aria-label", "Color key. Aircraft are colored by altitude relative to you: violet above, white level, green below. A hollow grey symbol is on the ground. Open the full legend.");
+    key.append(el("span", "cap", "Alt ft"));
+    for (const [k, text] of [["above_far", "+" + th], ["above_near", "+" + lv], ["level", "LEVEL"], ["below_near", "−" + lv], ["below_far", "−" + th]]) {
+      const s = el("span"); s.innerHTML = dartSvg(COL.band[k], 13); s.append(text); key.append(s);
+    }
+    const g = el("span"); g.innerHTML = groundSvg(14); g.append("GND"); key.append(g);
+
+    const rows = [
+      ["above_far", "More than " + fmtFt(th) + " ft above"], ["above_near", lv + " to " + fmtFt(th) + " ft above"],
+      ["level", "Within " + lv + " ft: level with you"],
+      ["below_near", lv + " to " + fmtFt(th) + " ft below"], ["below_far", "More than " + fmtFt(th) + " ft below"],
+    ];
+    const ul = $("legend-alt");
+    for (const [k, text] of rows) { const li = el("li"); li.innerHTML = dartSvg(COL.band[k], 18); li.append(el("span", null, text)); ul.append(li); }
+    const gl = el("li"); gl.innerHTML = groundSvg(18); gl.append(el("span", null, "Hollow grey with a ground bar and the letters GND: on the ground, parked or taxiing. Shown, never alerted on."));
+    ul.append(gl);
+    const svg = (inner) => '<svg width="18" height="18" viewBox="-10 -10 20 20" aria-hidden="true">' + inner + "</svg>";
+    const sym = [
+      [svg('<circle r="4" fill="none" stroke="' + COL.ink2 + '"/><circle r="8.5" fill="none" stroke="' + COL.ink2 + '" opacity="0.5"/>'), "Ripples: one for each boundary the aircraft is inside. They move faster as it gets closer."],
+      [svg('<rect x="-9" y="-6" width="18" height="12" fill="' + COL.ta + '"/>'), "Amber with the letters TA: traffic advisory. Look for it."],
+      [svg('<rect x="-9" y="-6" width="18" height="12" fill="' + COL.ra + '"/>'), "Red with the letters RA: resolution advisory. Climb or descend as shown."],
+      [svg('<path d="M0-9 7 0H3v9h-6V0h-4z" fill="' + COL.raSoft + '"/>'), "Red arrow in the side view: the altitude change advised. A turn is advised only when you are too low to descend, or when an altitude change alone falls well short."],
+      [svg('<circle r="8" fill="none" stroke="' + COL.ta + '" stroke-dasharray="4 3" stroke-width="1.5"/>'), "Dashed ring: a time boundary not yet crossed. It turns solid once the aircraft is inside."],
+      [svg('<path d="M-9 0H3M0-4 8 4M8-4 0 4" stroke="' + COL.ink2 + '" fill="none" stroke-width="1.5"/>'), "Line and cross: where the aircraft will be, relative to you, at closest approach."],
+      [svg('<text x="0" y="4" text-anchor="middle" font-size="10" font-weight="700" fill="' + COL.ink + '" font-family="monospace">+07</text>'), "Tag: altitude difference in hundreds of feet, with an arrow when climbing or descending."],
+      [svg('<path d="M-9 2H9" stroke="' + COL.ink3 + '" stroke-width="2" fill="none"/><path d="M-9 9-2 2M-3 9 4 2M3 9 9 3" stroke="' + COL.ink3 + '" stroke-width="1" fill="none"/>'), "Hatched band in the side view: the ground, when the field elevation is known."],
+      [svg('<path d="M-9 0H9" stroke="' + COL.ink2 + '" stroke-width="1.5" stroke-dasharray="2 4" fill="none"/>'), "Dotted line in the side view: the descend floor. Below it a descend is not advised."],
+    ];
+    const ul2 = $("legend-sym");
+    for (const [s, text] of sym) { const li = el("li"); li.innerHTML = s; li.append(el("span", null, text)); ul2.append(li); }
+    $("advice-note").textContent = CFG.ra_vertical_first
+      ? "Advice is a change of altitude: climb at " + fmtFt(CFG.ra_climb_fpm) + " ft/min or descend at " + fmtFt(CFG.ra_descent_fpm) + " ft/min. A turn is the last resort."
+      : "Advice is whichever of climb, descend or turn is predicted to give the most separation.";
+  }
+
+  function buildLog() {
+    const ul = $("log"); ul.textContent = "";
+    const ev = allEvents();
+    $("n-events").textContent = ev.length || "";
+    if (!ev.length) { const li = el("li"); li.append(el("p", "empty", LIVE ? "No advisories yet." : "This scenario produces no advisories. That is the expected result.")); ul.append(li); return; }
+    ev.forEach((e) => {
+      const li = el("li"), b = el("button"); b.type = "button"; b.dataset.t = e.t;
+      b.append(el("span", "t", e.t.toFixed(0) + " s"));
+      b.append(el("span", "what", EVENT_TITLE[e.kind] + (e.maneuver ? ": " + e.maneuver : "") + " (" + e.icao + ")"));
+      if (e.phrase) b.append(el("span", "say", "“" + e.phrase + "”"));
+      li.dataset.t = e.t; li.append(b); ul.append(li);
+    });
+  }
+  function buildMarks() {
+    const m = $("marks"); m.textContent = "";
+    const dur = S.frames.length ? S.frames[S.frames.length - 1].t : 0;
+    if (!dur) return;
+    allEvents().forEach((e) => { const i = el("i", e.kind); i.style.left = (e.t / dur * 100) + "%"; m.append(i); });
+  }
+
+  // ------------------------------------------------------------------ sheets (phone)
+  function openSheet(name, opener) {
+    S.sheet = name; S.opener = opener || null; domDue = 0;
+    $("sheets").classList.add("open"); $("scrim").hidden = wide.matches;
+    document.querySelectorAll("#sheets .panel").forEach((p) => p.classList.toggle("active", p.dataset.panel === name));
+    document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-expanded", String(b.dataset.open === name)));
+    const panel = document.querySelector('#sheets .panel[data-panel="' + name + '"]');
+    if (!wide.matches) { $("sheets").scrollTop = 0; panel.querySelector(".close").focus(); }
+    else panel.scrollIntoView({ block: "nearest", behavior: reduceMotion ? "auto" : "smooth" });
+  }
+  function closeSheet(restoreFocus) {
+    if (!S.sheet) return;
+    S.sheet = null;
+    $("sheets").classList.remove("open"); $("scrim").hidden = true;
+    document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-expanded", "false"));
+    if (restoreFocus && S.opener) S.opener.focus();
+  }
+
+  // ------------------------------------------------------------------ new advisories: voice, vibration, sheet out of the way
+  function onNewEvents() {
+    const ev = allEvents();
+    let due = 0;
+    while (due < ev.length && ev[due].t <= S.t + 1e-6) due++;
+    if (due > S.seenEvents) {
+      const fresh = ev.slice(S.seenEvents, due).filter((e) => S.t - e.t < 1.5);
+      if (fresh.length && !wide.matches) closeSheet(false);            // never let a sheet hide a new advisory
+      if (S.voice) {
+        for (const e of fresh) {
+          if (e.phrase && "speechSynthesis" in window) try { window.speechSynthesis.speak(new SpeechSynthesisUtterance(e.phrase)); } catch (err) { /* no voice available */ }
+          if (e.kind === "RA" && navigator.vibrate) try { navigator.vibrate([220, 90, 220]); } catch (err) { /* not allowed here */ }
+        }
+      }
+    }
+    S.seenEvents = due;
+  }
+  function resetSeen() { S.seenEvents = allEvents().filter((e) => e.t <= S.t + 1e-6).length; }
+
+  // keep the screen awake while the picture is moving, where the browser allows it
+  let wake = null;
+  async function keepAwake() {
+    if (wake || !("wakeLock" in navigator) || document.visibilityState !== "visible") return;
+    try { wake = await navigator.wakeLock.request("screen"); wake.addEventListener("release", () => { wake = null; }); } catch (err) { /* refused: fine */ }
+  }
+  document.addEventListener("visibilitychange", () => { if (S.playing || LIVE) keepAwake(); });
+
+  function setPlayIcon() {
+    const end = S.frames.length ? S.frames[S.frames.length - 1].t : 0;
+    const state = S.playing ? "pause" : (S.t >= end && end > 0 ? "replay" : "play");
+    $("play").innerHTML = ICON[state];
+    $("play").setAttribute("aria-label", state === "pause" ? "Pause" : state === "replay" ? "Replay" : "Play");
+  }
+
+  // ------------------------------------------------------------------ frame loop
+  let lastWall = performance.now(), domDue = 0;
+  function tick(nowMs) {
+    const dt = Math.min(0.25, (nowMs - lastWall) / 1000);
+    lastWall = nowMs;
+    const end = S.frames.length ? S.frames[S.frames.length - 1].t : 0;
+    if (LIVE) {
+      const period = LIVE.period_s || 1;
+      S.t = clamp(end - period + (nowMs - S.liveAnchor) / 1000, S.frames.length ? S.frames[0].t : 0, end);
+    } else if (S.playing) {
+      S.t += dt * S.speed;
+      if (S.t >= end) { S.t = end; S.playing = false; setPlayIcon(); }
+    }
+    const fr = frameAt(S.t), focus = focusTarget(fr);
+    const want = fr ? wantedScale(fr, focus) : 6;
+    S.scaleMi = Math.abs(want - S.scaleMi) < 0.01 ? want : lerp(S.scaleMi, want, 1 - Math.exp(-dt * 4));
+    drawScope(fr, focus, nowMs / 1000);
+    drawProfile(fr, focus);
+    onNewEvents();
+    if (nowMs >= domDue) {           // text readouts refresh 5 times a second
+      domDue = nowMs + 200;
+      setBanner(fr); setFocus(fr, focus); setTable(fr, focus); setShellRows(focus);
+      if (!LIVE) { $("seek").value = S.t; $("clock").textContent = S.t.toFixed(0) + " / " + end.toFixed(0) + " s"; }
+      else $("clock").textContent = "live";
+      document.querySelectorAll("#log li[data-t]").forEach((li) => li.classList.toggle("future", Number(li.dataset.t) > S.t + 1e-6));
+      updateTip(fr);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // ------------------------------------------------------------------ hover and selection
+  function nearestHit(evt) {
+    const r = $("scope").getBoundingClientRect(), x = evt.clientX - r.left, y = evt.clientY - r.top;
+    let best = null, bd = 28;
+    for (const h of S.hits) { const d = Math.hypot(h.x - x, h.y - y); if (d < bd) { bd = d; best = h; } }
+    return best;
+  }
+  function updateTip(fr) {
+    const tip = $("tip");
+    const t = S.hover && fr ? fr.targets.find((x) => x.icao === S.hover.icao) : null;
+    const hit = t && S.hits.find((h) => h.icao === t.icao);
+    if (!t || !hit) { tip.hidden = true; return; }
+    tip.textContent = "";
+    const head = el("div");
+    head.append(el("b", null, t.icao), " ", t.on_ground ? el("span", "chip gnd", "GND")
+      : el("span", "chip " + (t.level === "RA" ? "ra" : t.level === "TA" ? "ta" : ""), t.level === "NONE" ? "no alert" : t.level));
+    tip.append(head);
+    const dl = el("dl");
+    const row = (k, v) => { dl.append(el("dt", null, k), el("dd", null, v)); };
+    row("Range", fmtMi(t.range_m) + " mi");
+    row("Altitude", t.on_ground ? "on the ground" : altWords(t.rel_alt_ft));
+    row("Speed", t.gs_kt.toFixed(0) + " kt");
+    if (!t.on_ground) {
+      row("Closing", closingKt(t).toFixed(0) + " kt");
+      row("Closest in", t.tcpa_s > 0 ? t.tcpa_s.toFixed(0) + " s" : "–");
+      row("Miss", fmtFt(t.vmd_ft) + " ft, " + (t.hmd_m / NM).toFixed(2) + " nm");
+      row("Inside", t.innermost ? (SHELLS.find((s) => s.key === t.innermost) || {}).label : "nothing");
+    }
+    tip.append(dl);
+    tip.hidden = false;
+    const wrap = $("scope-wrap").getBoundingClientRect();
+    const left = hit.x + 18 + tip.offsetWidth > wrap.width ? hit.x - 18 - tip.offsetWidth : hit.x + 18;
+    tip.style.left = clamp(left, 0, wrap.width - tip.offsetWidth) + "px";
+    tip.style.top = clamp(hit.y - 20, 0, wrap.height - tip.offsetHeight) + "px";
+  }
+
+  // ------------------------------------------------------------------ wiring
+  function loadRecording(i, startAtFirstAlert, at) {
+    S.recIndex = i; S.rec = DATA.recordings[i]; S.frames = S.rec.frames; S.selected = null; S.hover = null;
+    const end = S.frames[S.frames.length - 1].t;
+    // On first load, open a few seconds before the RA so the page shows an alert building, not empty sky.
+    const ra = allEvents().find((e) => e.kind === "RA"), first = allEvents()[0];
+    S.t = at != null ? clamp(at, 0, end) : !startAtFirstAlert ? 0 : ra ? Math.max(0, ra.t - 6) : first ? Math.max(0, first.t - 4) : 0;
+    S.playing = !reduceMotion; setPlayIcon();
+    $("seek").max = end; $("seek").value = S.t;
+    const elev = S.rec.field_elev_ft;
+    $("scenario-desc").textContent = (S.rec.description || S.rec.name) + (elev != null ? " Field elevation " + fmtFt(elev) + " ft." : "");
+    const fr = frameAt(S.t);
+    S.scaleMi = fr ? wantedScale(fr, focusTarget(fr)) : 6;
+    resetSeen(); buildLog(); buildMarks();
+  }
+
+  function start(saved) {
+    saved = saved || {};
+    buildLegend();
+    if (saved.orient) S.orient = saved.orient;
+    if (saved.rangeSel) { S.rangeSel = saved.rangeSel; $("range").value = saved.rangeSel; }
+    if (LIVE) {
+      $("scenario").hidden = true; $("seek-row").hidden = true; $("play").hidden = true; $("speed-field").hidden = true;
+      $("live-line").hidden = false;
+      $("live-line").textContent = "LIVE, advisory only" + (LIVE.on_ground ? ", on the ground" : "");
+      $("mode-line").textContent = "Live traffic, advisory only. Fixed ownship at " + LIVE.lat.toFixed(4) + ", " + LIVE.lon.toFixed(4) + ", " + fmtFt(LIVE.alt_ft) + " ft" + (LIVE.on_ground ? ", on the ground" : "") + ". Autopilot disabled.";
+      $("scenario-desc").textContent = "Showing aircraft received by dump1090. Ownship has no speed or track in live mode, so the scope is north up." +
+        (LIVE.field_elev_ft != null ? " Field elevation " + fmtFt(LIVE.field_elev_ft) + " ft: aircraft reporting “ground” are shown at that altitude." : " Aircraft on the ground are hidden unless the field elevation is given (--field-elev).");
+      S.orient = "north";
+      const poll = async () => {
+        try {
+          const r = await fetch("live.json?since=" + S.liveSeq, { cache: "no-store" }), j = await r.json();
+          if (j.frames.length) {
+            const hadEvents = j.frames.some((f) => f.events.length);
+            S.frames = S.frames.concat(j.frames).slice(-900); S.liveSeq = j.seq; S.liveAnchor = performance.now();
+            if (hadEvents) buildLog();
+          }
+        } catch (err) { /* receiver or server briefly unavailable; keep showing the last picture */ }
+        setTimeout(poll, 400);
+      };
+      S.frames = []; S.liveAnchor = performance.now(); buildLog(); poll(); keepAwake();
+    } else {
+      const sel = $("scenario");
+      DATA.recordings.forEach((r, i) => { const o = el("option", null, r.name); o.value = i; sel.append(o); });
+      const def = Math.max(0, DATA.recordings.findIndex((r) => r.file === "mixed_traffic.json"));
+      const first = saved.rec != null && DATA.recordings[saved.rec] ? saved.rec : def;
+      sel.value = first; loadRecording(first, true, saved.t);
+      sel.addEventListener("change", () => loadRecording(Number(sel.value), false));
+    }
+    $("view-track").setAttribute("aria-pressed", String(S.orient === "track"));
+    $("view-north").setAttribute("aria-pressed", String(S.orient === "north"));
+
+    $("play").addEventListener("click", () => {
+      const end = S.frames[S.frames.length - 1].t;
+      if (S.t >= end) { S.t = 0; resetSeen(); }
+      S.playing = !S.playing; setPlayIcon();
+      if (S.playing) keepAwake();
+    });
+    $("seek").addEventListener("input", (e) => { S.t = Number(e.target.value); domDue = 0; resetSeen(); setPlayIcon(); });
+    $("speed").addEventListener("change", (e) => { S.speed = Number(e.target.value); });
+    $("range").addEventListener("change", (e) => { S.rangeSel = e.target.value; });
+    const setView = (v) => { S.orient = v; $("view-track").setAttribute("aria-pressed", String(v === "track")); $("view-north").setAttribute("aria-pressed", String(v === "north")); };
+    $("view-track").addEventListener("click", () => setView("track"));
+    $("view-north").addEventListener("click", () => setView("north"));
+    $("voice").addEventListener("click", () => {
+      S.voice = !S.voice; resetSeen();
+      const ok = "speechSynthesis" in window;
+      $("voice").setAttribute("aria-pressed", String(S.voice && ok));
+      $("voice").textContent = !ok ? "Unavailable" : S.voice ? "On" : "Off";
+      if (S.voice && ok) try { window.speechSynthesis.speak(new SpeechSynthesisUtterance("Voice on")); } catch (err) { /* ignore */ }
+    });
+    $("log").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-t]"); if (!b) return;
+      S.t = Math.max(0, Number(b.dataset.t) - 1); domDue = 0; resetSeen(); setPlayIcon();
+      if (!wide.matches) closeSheet(true);
+    });
+    const pick = (icao) => { S.selected = S.selected === icao ? null : icao; domDue = 0; };
+    $("traffic").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-icao]"); if (tr) pick(tr.dataset.icao); });
+    $("traffic").addEventListener("keydown", (e) => { const tr = e.target.closest("tr[data-icao]"); if (tr && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); pick(tr.dataset.icao); } });
+    const scope = $("scope");
+    scope.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse") { S.hover = nearestHit(e); domDue = 0; } });
+    scope.addEventListener("pointerleave", () => { S.hover = null; domDue = 0; });
+    scope.addEventListener("click", (e) => { const h = nearestHit(e); if (h) pick(h.icao); else S.selected = null; domDue = 0; });
+
+    document.querySelectorAll("[data-open]").forEach((b) => b.addEventListener("click", () => {
+      if (S.sheet === b.dataset.open && !wide.matches) closeSheet(true); else openSheet(b.dataset.open, b);
+    }));
+    document.querySelectorAll("#sheets .close").forEach((b) => b.addEventListener("click", () => closeSheet(true)));
+    $("scrim").addEventListener("click", () => closeSheet(true));
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(true); });
+    wide.addEventListener("change", () => closeSheet(false));
+
+    setPlayIcon();
+    if (S.playing) keepAwake();
+    requestAnimationFrame((t) => { lastWall = t; tick(t); });
+  }
+
+  // When the page is updated while someone has it open, carry on from where they were.
+  const hot = window.claude && window.claude.hot;
+  if (hot && hot.snapshot) hot.snapshot(() => ({ rec: S.recIndex, t: S.t, orient: S.orient, rangeSel: S.rangeSel }));
+  if (hot && hot.ready) hot.ready(start); else start(hot && hot.data);
+})();
+</script>

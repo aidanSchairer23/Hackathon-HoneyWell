@@ -1,0 +1,12 @@
+{
+  "name": "Opposite-direction parallel pass 0.7 nm abeam (expect no alerts)",
+  "description": "Co-altitude reciprocal track offset 0.7 nm (0.806 mi) to the east: predicted horizontal miss is outside the 0.5 nm threshold.",
+  "duration_s": 100,
+  "ownship": {"icao": "A00001", "lat": 39.5700, "lon": -104.8500, "alt_ft": 7500,
+              "gs_kt": 110, "track_deg": 0, "vs_fpm": 0},
+  "pilot": {"response": "ignore"},
+  "intruders": [
+    {"icao": "A00002", "east_mi": 0.806, "north_mi": 4.5, "alt_ft": 7500,
+     "gs_kt": 110, "track_deg": 180, "vs_fpm": 0}
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "Landing: aircraft on the ground are shown, not alerted on",
+  "description": "Ownship flies a final approach to a runway at 5,400 ft and lands. One aircraft is holding short beside the touchdown point, one is taxiing and one is parked: all three are drawn as on the ground and never raise an advisory. Pattern traffic and a departure are airborne and far enough away to stay quiet. Once ownship touches down it is on the ground too. Expected: no advisories. Without the ground flags the same approach gives a traffic advisory and a climb RA on short final.",
+  "duration_s": 110,
+  "field_elev_ft": 5400,
+  "ownship": {"icao": "A00001", "lat": 39.5700, "lon": -104.8500, "alt_ft": 6000,
+              "gs_kt": 70, "track_deg": 0, "vs_fpm": -500},
+  "pilot": {"response": "ignore"},
+  "intruders": [
+    {"icao": "A0D001", "east_mi": 0.05, "north_mi": 1.55, "on_ground": true,
+     "gs_kt": 0, "track_deg": 270},
+    {"icao": "A0D002", "east_mi": 0.12, "north_mi": 2.30, "on_ground": true,
+     "gs_kt": 12, "track_deg": 180},
+    {"icao": "A0D003", "east_mi": 0.20, "north_mi": 1.90, "on_ground": true,
+     "gs_kt": 0, "track_deg": 90},
+    {"icao": "A0A004", "east_mi": 1.00, "north_mi": 2.20, "alt_ft": 6400,
+     "gs_kt": 90, "track_deg": 180, "vs_fpm": 0},
+    {"icao": "A0A005", "east_mi": 0.00, "north_mi": 2.60, "alt_ft": 5700,
+     "gs_kt": 75, "track_deg": 0, "vs_fpm": 700}
+  ]
+}

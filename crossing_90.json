@@ -1,0 +1,12 @@
+{
+  "name": "90 degree crossing from the right, pilot complies after 2 s",
+  "description": "Intruder westbound from ownship's right; both reach the same point about 60 s after start.",
+  "duration_s": 100,
+  "ownship": {"icao": "A00001", "lat": 39.5700, "lon": -104.8500, "alt_ft": 7500,
+              "gs_kt": 110, "track_deg": 0, "vs_fpm": 0},
+  "pilot": {"response": "comply", "delay_s": 2.0},
+  "intruders": [
+    {"icao": "A00002", "east_mi": 2.11, "north_mi": 2.11, "alt_ft": 7500,
+     "gs_kt": 110, "track_deg": 270, "vs_fpm": 0}
+  ]
+}

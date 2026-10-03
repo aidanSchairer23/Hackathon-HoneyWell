@@ -1,0 +1,4 @@
+numpy
+pyttsx3
+requests
+pytest

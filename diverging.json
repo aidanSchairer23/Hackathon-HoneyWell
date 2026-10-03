@@ -1,0 +1,16 @@
+{
+  "name": "Diverging traffic (expect no alerts)",
+  "description": "One faster aircraft pulling away ahead, one opposite-direction aircraft already passed behind, one turning away to the east. All co-altitude.",
+  "duration_s": 60,
+  "ownship": {"icao": "A00001", "lat": 39.5700, "lon": -104.8500, "alt_ft": 7500,
+              "gs_kt": 110, "track_deg": 0, "vs_fpm": 0},
+  "pilot": {"response": "ignore"},
+  "intruders": [
+    {"icao": "A00002", "east_mi": 0.0, "north_mi": 1.0, "alt_ft": 7500,
+     "gs_kt": 150, "track_deg": 0, "vs_fpm": 0},
+    {"icao": "A00003", "east_mi": 0.0, "north_mi": -1.0, "alt_ft": 7500,
+     "gs_kt": 110, "track_deg": 180, "vs_fpm": 0},
+    {"icao": "A00004", "east_mi": 1.0, "north_mi": 0.5, "alt_ft": 7500,
+     "gs_kt": 120, "track_deg": 90, "vs_fpm": 0}
+  ]
+}
